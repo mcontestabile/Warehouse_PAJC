@@ -1,4 +1,4 @@
-package it.unibs.pajc.warehouse;
+package it.unibs.pajc.utilities;
 
 import java.util.Random;
 

@@ -6,6 +6,8 @@ public class UsefulStrings {
 	
 	public static final String INSERT_PORT_NUMBER = "Inserisci la porta a cui vuoi connetterti.";
 	
+	public static final String INSERT_YOUR_NAME = "Inserisci il tuo nome.";
+	
 	public static final String WAREHOUSE_NAME = "Magazzino";
 	
 	public static final String LOGIN_GUI = "login";

@@ -1,12 +1,14 @@
 package it.unibs.pajc.warehouse;
 
+import it.unibs.pajc.utilities.RandomNumbers;
+
+import java.io.Serializable;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import javax.lang.model.element.NestingKind;
 import javax.swing.ImageIcon;
 
-public class Article {
+public class Article implements Serializable {
 	
 	/*
      * Nome dell'articolo, sottocategorie (con relative
@@ -24,7 +26,6 @@ public class Article {
     private int[] price;
     private int[] minimum;
     private int[] maximum;
-    private int requestedTime;
     private ImageIcon articleIcon;
     private LinkedHashMap<String, ImageIcon> versions;
 
@@ -33,19 +34,21 @@ public class Article {
 
     /**
      * Costruttore dell'oggetto articolo
-     * @param name nome dell'articolo.
+     * @param name nome della categoria di merce.
      * @param minimum quantità minima che si può avere dell'articolo {@code X}.
      * @param maximum quantità massima che si può avere dell'articolo {@code X}.
-     * @param requestedTime tempo richiesto per produrre l'articolo {@code X}.
+	 * @param price prezzo dell'articolo.
+	 * @param articleIcon icona dell'articolo.
+	 * @param quantity quantità esistente dell'articolo.
+	 * @param versions versioni della merce.
      */
-    public Article (String name, LinkedHashMap<String, ImageIcon> versions, int[] price, int[] quantity,int[] minimum, int[] maximum, int requestedTime, ImageIcon articleIcon) {
+    public Article (String name, LinkedHashMap<String, ImageIcon> versions, int[] price, int[] quantity,int[] minimum, int[] maximum, ImageIcon articleIcon) {
         this.name = name;
         this.versions = versions;
         this.price = price;
         this.quantity = quantity;
         this.minimum = minimum;
         this.maximum = maximum;
-        this.requestedTime = requestedTime;
         this.articleIcon = articleIcon;
     }
 
@@ -57,13 +60,7 @@ public class Article {
 		this.price = price;
 	}
 
-	public int getRequestedTime() {
-        return requestedTime;
-    }
-
-    public void setRequestedTime(int requestedTime) {
-        this.requestedTime = requestedTime;
-    }
+	public void setPrice(int price, int i) {this.price[i] = price;}
 
     public String getName() {
         return name;
@@ -77,37 +74,47 @@ public class Article {
 		return quantity;
 	}
     
-    public int getQuantity(int i) {
-		return quantity[i];
-	}
+    public int getQuantity(int i) {return quantity[i];}
 
 	public void setQuantity(int[] q) {
 		quantity = q;
 	}
 	
-	public void setQuantity(int q, int i, int previous) {
-		quantity[i] = q + previous;
-	}
-	
 	public void setQuantity(int q, int i) {
-		quantity[i] = q;
+		quantity[i] += q ;
+	}
+
+	public void setQuantityToMax(int i) {quantity[i] = maximum[i];}
+
+	public void newQuantityFromOrder(int q, int i) {
+		quantity[i] -= q;
 	}
 
 	public int[] getMinimum() {
 		return minimum;
+	}
+	
+	public int getMinimum(int i) {
+		return minimum[i];
 	}
 
 	public void setMinimum(int[] minimum) {
 		this.minimum = minimum;
 	}
 
+	public void setMinimum(int minimum, int i) {this.minimum[i] = minimum;}
+
 	public int[] getMaximum() {
 		return maximum;
 	}
 
+	public int getMaximum(int i) {return this.maximum[i];}
+
 	public void setMaximum(int[] maximum) {
 		this.maximum = maximum;
 	}
+
+	public void setMaximum(int maximum, int i) {this.maximum[i] = maximum;}
 	
 	public LinkedHashMap<String, ImageIcon> getVersions() {
 		return versions;
@@ -125,6 +132,10 @@ public class Article {
 
 	public void setVersions(LinkedHashMap<String, ImageIcon> versions) {
 		this.versions = versions;
+	}
+
+	public void setVersion(String name, ImageIcon icon) {
+		this.versions.put(name, icon);
 	}
 	
 	public ImageIcon getArticleIcon() {
@@ -152,20 +163,6 @@ public class Article {
      */
     public int settingInitialQuantity(int maximum, int minimum) {
         return RandomNumbers.obtainInt(maximum, minimum);
-    }
-
-    /**
-     * Al client e al server non interessa il funzionamento del thread
-     * e, quindi, come funziona il ritardo dell'esecuzione della
-     * possibilità di ordinare. Di conseguenza, il metodo ha
-     * come modificatore di accesso « private ».
-     */
-    private void productionTime() {
-        try {
-            Thread.sleep(requestedTime);
-        } catch (InterruptedException interruptedException) {
-            interruptedException.printStackTrace();
-        }
     }
 
     /**
