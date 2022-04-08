@@ -16,6 +16,7 @@ import javax.swing.tree.*;
 
 import it.unibs.pajc.network.Protocol;
 import it.unibs.pajc.utilities.UsefulStrings;
+import it.unibs.pajc.warehouse.WareHouseWorkerView.Connection;
 
 /**
  *
@@ -33,11 +34,7 @@ public class WareHouseCustomerView extends JPanel implements ActionListener, Tre
 	private JPanel warehouseContentPane, centerPanel;
 	private JButton quit; // quit è il bottone che permette di passare all'altra card (login), onOff accende e spegne la connessione al server.
 	private JLabel articleLabel;
-	private AbstractButton arrowButton;
-	private JPopupMenu popupMenu;
-	private ArrayList<String> flattenedData; // Merce ordinata in ordine alfabetico, categorie delle merci.
 	//private JLabel NO_IMAGES_AVAILABLE =new JLabel(UsefulStrings.NO_IMAGE_AVAILABLE);
-	private JComboBox<String> comboBox;
 	private JTree tree;
 	private DefaultMutableTreeNode rootNode;
 	private Socket socket;
@@ -45,26 +42,30 @@ public class WareHouseCustomerView extends JPanel implements ActionListener, Tre
 	// IO streams
 	private ObjectOutputStream toServer;
 	private ObjectInputStream fromServer;
-
-	private WareHouseController controller;
+	
 	private WareHouseModel model;
-
+	private WareHouseController controller;
+	
 	public WareHouseCustomerView(JPanel contentPane, Socket socket) throws IOException, ClassNotFoundException {
 		this.warehouseContentPane = contentPane;
 
 		this.socket = socket;
 		fromServer = new ObjectInputStream(socket.getInputStream()); // Create an input stream to receive data from the server
 		toServer = new ObjectOutputStream(socket.getOutputStream()); // Create an output stream to send data to the server
-
-		controller = getController();
+		
+		new Thread (new Connection(socket,this)).start();            // Thread per la gestione della ricezione del model e controller.
 
 		initializeWareHouseComponents();
 	}
 
 	@SuppressWarnings("unchecked")
 	private void initializeWareHouseComponents() throws IOException, ClassNotFoundException {
-		model = getModel();
-		controller = getController();
+		System.out.println("Richiedo model e controller");
+		toServer.writeObject("Model e Controller");
+		toServer.flush();
+		System.out.println("W Ho ricevuto model.");
+		System.out.println("W Ho ricevuto controller.");
+
 
 		setOpaque(true);
 		setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
@@ -177,9 +178,9 @@ public class WareHouseCustomerView extends JPanel implements ActionListener, Tre
 						DefaultMutableTreeNode parent = (DefaultMutableTreeNode)node.getParent();
 						Article article = (Article)parent.getUserObject();
 						String version = (String)nodeInfo;
-						for (int i = 0; i < controller.getWarehouse().getSubcategories().size(); i++) {
+						for (int i = 0; i < model.getSubcategories().size(); i++) {
 							if(article.getVersions().containsKey(version)) {
-								ImageIcon icon = controller.getWarehouse().getVersionIcon(version);
+								ImageIcon icon = model.getVersionIcon(version);
 								Integer price = article.getPrice()[i];
 								Integer units = article.getQuantity()[i];
 								showMessage(version, icon, price, units);
@@ -196,9 +197,9 @@ public class WareHouseCustomerView extends JPanel implements ActionListener, Tre
 						DefaultMutableTreeNode parent = (DefaultMutableTreeNode)node.getParent();
 						Article article = (Article)parent.getUserObject();
 						String version = (String)nodeInfo;
-						for (int i = 0; i < controller.getWarehouse().getSubcategories().size(); i++) {
+						for (int i = 0; i < model.getSubcategories().size(); i++) {
 							if(article.getVersions().containsKey(version)) {
-								ImageIcon icon = controller.getWarehouse().getVersionIcon(version);
+								ImageIcon icon = model.getVersionIcon(version);
 								Integer units = article.getQuantity()[i];
 								try {
 									showInput(units, version, article, controller, model, treeModel, node);
@@ -219,21 +220,6 @@ public class WareHouseCustomerView extends JPanel implements ActionListener, Tre
 		welcomeLabel.setLabelFor(centerPanel);
 		welcomeLabel.setFont(new Font("Lucida Grande", Font.BOLD, 16));
 		centerPanel.add(welcomeLabel);
-
-
-		JButton clearSelection = new JButton("Elimina selezione");
-		clearSelection.setBounds(229, 108, 153, 29);
-		clearSelection.setBackground(Color.BLACK);
-		centerPanel.add(clearSelection);
-
-		clearSelection.addActionListener(new ActionListener(){
-
-			@Override
-			public void actionPerformed(ActionEvent arg0) {
-				comboBox.setSelectedIndex(-1);
-			}
-
-		});
 	}
 
 	/**
@@ -294,6 +280,7 @@ public class WareHouseCustomerView extends JPanel implements ActionListener, Tre
 
 	public void showMessage(String msg, ImageIcon image, Integer price, Integer units) {
 		JOptionPane.showMessageDialog(null, new JLabel(msg + " » Prezzo: " + price + "€" +", Disponibili: " + units, JLabel.LEFT), msg, JOptionPane.INFORMATION_MESSAGE, image);
+		System.out.println("L'articolo nella versione " + msg + " ha quantità " + units);
 	}
 
 	public void showInput(int units, String version, Article article, WareHouseController controller, WareHouseModel model, DefaultTreeModel treeModel, DefaultMutableTreeNode node) throws IOException {
@@ -303,6 +290,7 @@ public class WareHouseCustomerView extends JPanel implements ActionListener, Tre
 
 		int result = JOptionPane.showConfirmDialog(null, inputs, "Effettuare l'ordine", JOptionPane.OK_CANCEL_OPTION, JOptionPane.INFORMATION_MESSAGE);
 
+		System.out.println("L'articolo " + article.getName() + " nella versione " + version + " ha quantità " + model.getArticle(article.getName()).getQuantity(new ArrayList<String>(model.getArticle(article.getName()).getVersions().keySet()).indexOf(version)));
 		if (result == JOptionPane.OK_OPTION) {
 			System.out.println("Quantità desiderata: " + quantity.getText());
 
@@ -336,28 +324,29 @@ public class WareHouseCustomerView extends JPanel implements ActionListener, Tre
 		}
 	}
 
+	/*
 	public WareHouseModel getModel() throws IOException, ClassNotFoundException {
-		System.out.println("Richiedo il model e il controller");
+		System.out.println("Richiedo il model.");
 		toServer.writeObject("Model");
 		toServer.flush();
 		//WareHouseController controller = new WareHouseController();
 		//return controller;
 		WareHouseModel model = (WareHouseModel) fromServer.readObject();
-		System.out.println("W Ho ricevuto model.");
+		System.out.println("C Ho ricevuto model.");
 		return model;
 	}
 
 	public WareHouseController getController() throws IOException, ClassNotFoundException {
-		System.out.println("Richiedo il model e il controller");
+		System.out.println("Richiedo il controller.");
 		toServer.writeObject("Controller");
 		toServer.flush();
 		//WareHouseController controller = new WareHouseController();
 		//return controller;
 		WareHouseController controller = (WareHouseController) fromServer.readObject();
-		System.out.println("W Ho ricevuto controller.");
+		System.out.println("C Ho ricevuto controller.");
 		return controller;
 	}
-
+    */
 
 	/**
 	 * @return The tree which this uses as a browser.  Will not be null.
@@ -440,56 +429,39 @@ public class WareHouseCustomerView extends JPanel implements ActionListener, Tre
 			return thePopup;
 		}
 	}
-
-	/*
-	 * Search for the given name in the flattened list of menu items.
-	 * If found, add that item to the combo and select it.
-	 */
-	private void setComboSelection(String name) {
-		Vector<String> items = new Vector<String>();
-
-		for (String item : flattenedData) {
-			/*
-			 * We're cheating here: if two items have the same name
-			 * (Fruit->Orange and Color->Orange, for example)
-			 * the wrong one may get selected. This should be more sophisticated
-			 * (left as an exercise to the reader)
-			 */
-			if (item.endsWith(name)) {
-				items.add(item);
-				break;
-			}
+	
+	class Connection extends Thread {
+		private Socket socket        = null;
+		private ObjectInputStream input = null;
+		private ObjectOutputStream out     = null;
+		WareHouseCustomerView customerView;
+		public WareHouseModel model;
+		public WareHouseController controller;
+		public Connection(Socket socket, WareHouseCustomerView customerView){
+			this.socket = socket;
+			this.customerView = customerView;
 		}
 
-		comboBox.setModel(new DefaultComboBoxModel<String>(items));
+		@Override
+		public void run() {
 
-		if (items.size() == 1)
-			comboBox.setSelectedIndex(0);
-	}
-
-	/*
-	 * Toggle the visibility of the custom popup.
-	 */
-	private void setPopupVisible(boolean visible) {
-		if (visible)
-			popupMenu.show(comboBox, 0, comboBox.getSize().height);
-		else
-			popupMenu.setVisible(false);
-	}
-
-	/*
-	 * Create a JMenuItem whose listener will display
-	 * the item in the combo.
-	 */
-	private JMenuItem createMenuItem(final String name) {
-		JMenuItem item = new JMenuItem(name);
-		item.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(ActionEvent event) {
-				// TODO Auto-generated method stub
-				setComboSelection(name);
+			try {
+				input = new ObjectInputStream(socket.getInputStream());
+				out = new ObjectOutputStream(socket.getOutputStream());
+			} catch (IOException e) {
+				e.printStackTrace();
 			}
-		});
-		return item;
+
+			while(true){
+				try {
+					System.out.println("Aggiorno view");
+					model = (WareHouseModel) input.readObject();
+					controller = (WareHouseController) input.readObject();
+					customerView.populateJTree(rootNode, model);
+				} catch (IOException | ClassNotFoundException e) {
+					e.printStackTrace();
+				}
+			}
+		}
 	}
 }

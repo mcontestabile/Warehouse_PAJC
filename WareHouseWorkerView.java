@@ -3,6 +3,8 @@ package it.unibs.pajc.warehouse;
 import javax.swing.*;
 import javax.swing.tree.*;
 import java.awt.Toolkit;
+
+import it.unibs.pajc.utilities.MyDragDropListener;
 import it.unibs.pajc.utilities.UsefulStrings;
 import javax.swing.GroupLayout.Alignment;
 import java.awt.*;
@@ -11,6 +13,9 @@ import java.awt.event.*;
 import java.io.*;
 import java.net.*;
 import java.util.ArrayList;
+import java.util.Observable;
+import java.util.Observer;
+
 import javax.swing.LayoutStyle.ComponentPlacement;
 import javax.swing.event.*;
 
@@ -22,7 +27,7 @@ import javax.swing.event.*;
  * Interfaccia grafica. Il JTree contiene i prodotti in vendita e disponibili all'acquisto,
  * Il bottone «quit» serve per uscire e terminare la connessione.
  */
-public class WareHouseWorkerView extends JPanel implements ActionListener, WindowListener,  TreeModelListener, TreeExpansionListener, TreeWillExpandListener {
+public class WareHouseWorkerView extends JPanel implements ActionListener, WindowListener,  TreeModelListener, TreeExpansionListener, TreeWillExpandListener, Observer {
 	private static final long serialVersionUID = 1L;
 
 	private JPanel warehouseContentPane, centerPanel;
@@ -33,11 +38,14 @@ public class WareHouseWorkerView extends JPanel implements ActionListener, Windo
 	private DefaultTreeModel treeModel;
 	private DefaultMutableTreeNode rootNode;
 	private Toolkit toolkit = Toolkit.getDefaultToolkit();
-	private int newNodeSuffix = 1;
+
 	private Socket socket;
 	// IO streams
 	private ObjectOutputStream toServer;
 	private ObjectInputStream fromServer;
+	
+	private WareHouseModel model;
+	private WareHouseController controller;
 
 	public WareHouseWorkerView(JPanel contentPane, Socket socket) throws IOException, ClassNotFoundException {
 		this.warehouseContentPane = contentPane;
@@ -45,13 +53,18 @@ public class WareHouseWorkerView extends JPanel implements ActionListener, Windo
 		this.socket = socket;
 		fromServer = new ObjectInputStream(socket.getInputStream()); // Create an input stream to receive data from the server
 		toServer = new ObjectOutputStream(socket.getOutputStream()); // Create an output stream to send data to the server
-
+		
+		new Thread (new Connection(socket,this)).start();            // Thread per la gestione della ricezione del model e controller.
+		
 		initializeWareHouseComponents();
 	}
 
 	private void initializeWareHouseComponents() throws IOException, ClassNotFoundException {
-		WareHouseModel model = getModel();
-		WareHouseController controller = getController();
+		System.out.println("Richiedo model e controller");
+		toServer.writeObject("Model e Controller");
+		toServer.flush();
+		System.out.println("W Ho ricevuto model.");
+		System.out.println("W Ho ricevuto controller.");
 
 		setOpaque(true);
 		setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
@@ -115,7 +128,7 @@ public class WareHouseWorkerView extends JPanel implements ActionListener, Windo
 			populateJTree(rootNode, model);
 			centerPanel.repaint();
 		});
-		
+
 		timer.start();
 
 		// Create tree model
@@ -229,6 +242,24 @@ public class WareHouseWorkerView extends JPanel implements ActionListener, Windo
 		centerPanel.add(removeButton);
 	}
 
+	/*
+	private static void doLoop(ObjectOutputStream fromServer, ObjectInputStream toServer) {
+		Thread newThread = new Thread(() -> {
+			while (true) {
+				SwingUtilities.invokeLater(() -> {
+					label.setText(new java.util.Date().toString());
+				});
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException ex) {
+					Logger.getLogger(NewMain.class.getName()).log(Level.SEVERE, null, ex);
+				}
+			}
+		});
+		newThread.start();
+	}
+	 */
+
 	/**
 	 * @return The tree which this uses as a browser.  Will not be null.
 	 */
@@ -291,6 +322,7 @@ public class WareHouseWorkerView extends JPanel implements ActionListener, Windo
 				// Send the pay to the server
 				toServer.flush();
 				// Get area pay the server
+				/*
 				try {
 					model = (WareHouseModel) fromServer.readObject();
 					controller = (WareHouseController) fromServer.readObject();
@@ -305,14 +337,16 @@ public class WareHouseWorkerView extends JPanel implements ActionListener, Windo
 				populateJTree(rootNode, model);
 				System.out.println("L'articolo " + article.getName() + " nella versione " + version + " ha quantità " + model.getArticle(article.getName()).getQuantity(new ArrayList<String>(model.getArticle(article.getName()).getVersions().keySet()).indexOf(version)));
 				repaint();
+				 */
 			} else  return;
 		} else if(result == JOptionPane.CLOSED_OPTION) {
 			return;
 		}
 	}
 
+	/*
 	public WareHouseModel getModel() throws IOException, ClassNotFoundException {
-		System.out.println("Richiedo il model e il controller");
+		System.out.println("Richiedo il model");
 		toServer.writeObject("Model");
 		toServer.flush();
 		//WareHouseController controller = new WareHouseController();
@@ -323,7 +357,7 @@ public class WareHouseWorkerView extends JPanel implements ActionListener, Windo
 	}
 
 	public WareHouseController getController() throws IOException, ClassNotFoundException {
-		System.out.println("Richiedo il model e il controller");
+		System.out.println("Richiedo il controller.");
 		toServer.writeObject("Controller");
 		toServer.flush();
 		//WareHouseController controller = new WareHouseController();
@@ -332,6 +366,7 @@ public class WareHouseWorkerView extends JPanel implements ActionListener, Windo
 		System.out.println("W Ho ricevuto controller.");
 		return controller;
 	}
+	*/
 
 	/** Remove all nodes except the root node. */
 	public void clear() {
@@ -484,8 +519,8 @@ public class WareHouseWorkerView extends JPanel implements ActionListener, Windo
 		Object[] inputs = {"Aggiungi categoria « articolo »", nameField,
 				"Quantità", quantityField,
 				"Prezzo", priceField,
-		        "Minimo", minimumQuantityField,
-		        "Massimo", maximumQuantityField,
+				"Minimo", minimumQuantityField,
+				"Massimo", maximumQuantityField,
 				nImageIconField,
 				"Versione", versionsField,
 				vImageIconField};
@@ -632,5 +667,46 @@ public class WareHouseWorkerView extends JPanel implements ActionListener, Windo
 	public void treeStructureChanged(TreeModelEvent arg0) {
 		// TODO Auto-generated method stub
 
+	}
+	
+	@Override
+	public void update(Observable o, Object arg) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	class Connection extends Thread {
+		private Socket socket        = null;
+		private ObjectInputStream input = null;
+		private ObjectOutputStream out     = null;
+		WareHouseWorkerView workerView;
+		public WareHouseModel model;
+		public WareHouseController controller;
+		public Connection(Socket socket, WareHouseWorkerView workerView){
+			this.socket = socket;
+			this.workerView = workerView;
+		}
+
+		@Override
+		public void run() {
+
+			try {
+				input = new ObjectInputStream(socket.getInputStream());
+				out = new ObjectOutputStream(socket.getOutputStream());
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+
+			while(true){
+				try {
+					System.out.println("Aggiorno view");
+					model = (WareHouseModel) input.readObject();
+					controller = (WareHouseController) input.readObject();
+					workerView.populateJTree(rootNode, model);
+				} catch (IOException | ClassNotFoundException e) {
+					e.printStackTrace();
+				}
+			}
+		}
 	}
 }
