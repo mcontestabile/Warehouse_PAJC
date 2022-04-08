@@ -13,6 +13,7 @@ import javax.swing.ImageIcon;
 
 import it.unibs.pajc.utilities.UsefulStrings;
 import it.unibs.pajc.warehouse.Article;
+import it.unibs.pajc.warehouse.WareHouseController;
 import it.unibs.pajc.warehouse.WareHouseModel;
 
 /**
@@ -27,44 +28,67 @@ import it.unibs.pajc.warehouse.WareHouseModel;
  */
 public class Server {
 
+	private ArrayList<Protocol> clients = new ArrayList<>();
+	private Object lock = new Object();
+	
 	public static void main(String[] args) throws IOException {
-
+		Server server = new Server();
+		server.start();
+	}
+	
+	public void start() throws IOException {
 		// Attiviamo il servizio su questa porta, non può essere modificata.
-		final int port = 1234;
-		
-		ServerSocket server = new ServerSocket(port); // Server che vogliamo creare.
+				final int port = 1234;
+				
+				ServerSocket server = new ServerSocket(port); // Server che vogliamo creare.
 
-		System.out.println("Il server è stato avviato.");
+				System.out.println("Il server è stato avviato.");
 
-		/*
-		 *  Creare un server significa creare una risorsa a livello di Classe Java.
-		 *  Gli standard ISO/OSI hanno servizi che permettono al layer applicativo
-		 *  di non preoccuparsi di come avvengono le cose a livelli più bassi.
-		 *  
-		 *  Il Server è nel try per chiuderlo in modo corretto appena finito il programma.
-		 */
-		try {
-
-			while (true) {
 				/*
-				 * Ora dobbiamo mettere in ascolto il server e accettare le richieste di comunicazione.
-				 * Come si può fare? Il server ha un metodo che si chiama accept che, finché non
-				 * faccio una richiesta al server, rimane in ascolto. Appena un client si connette,
-				 * il server restituisce un oggetto che è il client stesso, una socket.
+				 *  Creare un server significa creare una risorsa a livello di Classe Java.
+				 *  Gli standard ISO/OSI hanno servizi che permettono al layer applicativo
+				 *  di non preoccuparsi di come avvengono le cose a livelli più bassi.
+				 *  
+				 *  Il Server è nel try per chiuderlo in modo corretto appena finito il programma.
 				 */
-				Socket client = server.accept();
-				Protocol protocol = new Protocol(client);
-				Thread clientThread = new Thread(protocol);
-				clientThread.start();
-			}
+				try {
 
-		} catch (IOException e) {
-			System.err.println("Errore di comunicazione » " + e);
-		} finally {
-			server.close();
-		}
+					while (true) {
+						/*
+						 * Ora dobbiamo mettere in ascolto il server e accettare le richieste di comunicazione.
+						 * Come si può fare? Il server ha un metodo che si chiama accept che, finché non
+						 * faccio una richiesta al server, rimane in ascolto. Appena un client si connette,
+						 * il server restituisce un oggetto che è il client stesso, una socket.
+						 */
+						Socket socket = server.accept();
+						Protocol client = new Protocol(socket);
+						Thread clientThread = new Thread(client);
+						synchronized (lock) {
+						    clients.add(client);
+						}
+						clientThread.start();
+					}
 
-		System.out.println("Uscita dal server.");
+				} catch (IOException e) {
+					System.err.println("Errore di comunicazione » " + e);
+				} finally {
+					server.close();
+				}
+
+				System.out.println("Uscita dal server.");
+	}
+	
+	public void distributeMessage(WareHouseModel model, WareHouseController controller) throws IOException {
+	    List<Protocol> clientsCopy;
+	    
+	    synchronized (lock) {
+	        clientsCopy = new ArrayList<>(clients);
+	    }
+	    
+	    for (Protocol client : clientsCopy) {
+	        client.send(model);
+	        client.send(controller);
+	    }
 	}
 }
 

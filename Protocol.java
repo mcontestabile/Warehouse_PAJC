@@ -12,49 +12,47 @@ import it.unibs.pajc.warehouse.*;
 public class Protocol implements Runnable {
 	private ObjectInputStream in;
 	private ObjectOutputStream out;
-	private static ArrayList<Protocol> clients = new ArrayList<>();
 	private Socket client;
 	private boolean isRunning = true;
-	private String clientNameString;
+	//private String clientNameString;
+	
+	ArrayList<Protocol> clients = new ArrayList<>();
+	Object lock = new Object();
 	
 	private Article article;
 	private int units;
 	private  String version;
+	
+	WareHouseController controller = new WareHouseController();
+	WareHouseModel model = new WareHouseModel();
 
-	public Protocol(Socket client) {
+	public Protocol(Socket client) throws IOException {
 		this.client = client;
-		clients.add(this);
+		this.in = new ObjectInputStream(new BufferedInputStream(client.getInputStream()));       // Vedere l'output, i pacchetti, inviato dal server.
+	    this.out = new ObjectOutputStream(new BufferedOutputStream(client.getOutputStream()));   // Socket client diventa una presa per client-server, sono collegati fra loro.
 	}
 
 	@Override
 	public void run() {
 		try {
-			out = new ObjectOutputStream(client.getOutputStream());  // Vedere l'output, i pacchetti, inviato dal server.
-			in = new ObjectInputStream(client.getInputStream()); // Socket client diventa una presa per client-server, sono collegati fra loro.
-			clientNameString = JOptionPane.showInputDialog(UsefulStrings.INSERT_YOUR_NAME);
-
-			WareHouseController controller = new WareHouseController();
-			WareHouseModel model = controller.getWarehouse();
+			//clientNameString = JOptionPane.showInputDialog(UsefulStrings.INSERT_YOUR_NAME);
 			
-			System.out.println("Client connesso » " + client.getPort() + " " + clientNameString);
+			System.out.println("Client connesso » " + client.getPort() + " " + client.toString());
 
 			String request;
 			while (isRunning && (request = (String) in.readObject()) != null) {
 				//request = (String) in.readObject();
 
+				
 				switch (request) {
-					case "Model":
+					case "Model e Controller":
 						System.out.println("\n\n\n\n");
 						System.out.println("Invio il model: " + model);
-						send(model);
+						out.writeObject(model);
 						System.out.println("Ho inviato il model: " + model);
 						System.out.println("\n\n\n\n");
-						break;
-
-					case "Controller":
-						System.out.println("\n\n\n\n");
 						System.out.println("Invio il controller: " + controller);
-						send(controller);
+						out.writeObject(controller);
 						System.out.println("Ho inviato il controller: " + controller);
 						System.out.println("\n\n\n\n");
 						break;
@@ -79,7 +77,8 @@ public class Protocol implements Runnable {
 
 						System.out.println("Nuova quantità di " + version + " » " + model.getArticle(article.getName()).getQuantity(new ArrayList<String>(model.getArticle(article.getName()).getVersions().keySet()).indexOf(version)));
 						System.out.println("Model " + model + " aggiornato.");
-						sendToAll(model, controller);
+						out.writeObject(model);
+						out.writeObject(controller);
 						System.out.println("Model " + model + " e controller " + controller + " inviati.");
 						break;
 
@@ -106,7 +105,8 @@ public class Protocol implements Runnable {
 
 						System.out.println("Nuova quantità di " + version + " » " + model.getArticle(article.getName()).getQuantity(new ArrayList<String>(model.getArticle(article.getName()).getVersions().keySet()).indexOf(version)));
 						System.out.println("Model " + model + " aggiornato.");
-						sendToAll(model, controller);
+						out.writeObject(model);
+						out.writeObject(controller);
 						System.out.println("Model " + model + " e controller " + controller + " inviati.");
 						break;
 
@@ -145,7 +145,8 @@ public class Protocol implements Runnable {
 						model = controller.getWarehouse();
 
 						System.out.println("Invio il model: " + model);
-						sendToAll(model, controller);
+						out.writeObject(model);
+						out.writeObject(controller);
 						System.out.println("Ho inviato il model: " + model);
 						System.out.println("\n\n\n\n");
 
@@ -191,6 +192,12 @@ public class Protocol implements Runnable {
 		}
 	}
 
+	public void send(WareHouseModel model) throws IOException {
+		this.out.writeObject(model);
+		this.out.flush();
+		
+	}
+
 	private void close() {
 		isRunning = false;
 	}
@@ -201,24 +208,9 @@ public class Protocol implements Runnable {
 		if (clients.size() == 0) close();
 	}
 
-	public void sendToAll(WareHouseModel model, WareHouseController controller) throws IOException {
-		for(Protocol client : clients)
-			client.sendUpdate(client, model, controller);
-	}
-
-	public void sendUpdate(Protocol client, WareHouseModel model, WareHouseController controller) throws IOException {
-		this.out.writeObject(model);
-		this.out.writeObject(controller);
-		this.out.flush();
-	}
 
 	public void send(WareHouseController controller) throws IOException {
 		this.out.writeObject(controller);
-		this.out.flush();
-	}
-
-	public void send(WareHouseModel model) throws IOException {
-		this.out.writeObject(model);
 		this.out.flush();
 	}
 }
