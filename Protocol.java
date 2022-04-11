@@ -12,150 +12,190 @@ import it.unibs.pajc.warehouse.*;
 public class Protocol implements Runnable {
 	private ObjectInputStream in;
 	private ObjectOutputStream out;
+	//private static ArrayList<Protocol> clients = new ArrayList<>();
 	private Socket client;
 	private boolean isRunning = true;
-	//private String clientNameString;
-	
-	ArrayList<Protocol> clients = new ArrayList<>();
-	Object lock = new Object();
-	
+	private String clientNameString;
+
 	private Article article;
 	private int units;
 	private  String version;
-	
-	WareHouseController controller = new WareHouseController();
-	WareHouseModel model = new WareHouseModel();
 
+	private WareHouseController controller;
+	private WareHouseModel model;
+	/*
+	WareHouseController controller = new WareHouseController();
+	WareHouseModel model = controller.getWarehouse();
+	 */
 	public Protocol(Socket client) throws IOException {
+		out = new ObjectOutputStream(client.getOutputStream());  // Vedere l'output, i pacchetti, inviato dal server.
+		in = new ObjectInputStream(client.getInputStream());     // Socket client diventa una presa per client-server, sono collegati fra loro.
+		
 		this.client = client;
-		this.in = new ObjectInputStream(new BufferedInputStream(client.getInputStream()));       // Vedere l'output, i pacchetti, inviato dal server.
-	    this.out = new ObjectOutputStream(new BufferedOutputStream(client.getOutputStream()));   // Socket client diventa una presa per client-server, sono collegati fra loro.
+		//Server.clients.add(client);
 	}
 
 	@Override
 	public void run() {
 		try {
-			//clientNameString = JOptionPane.showInputDialog(UsefulStrings.INSERT_YOUR_NAME);
-			
-			System.out.println("Client connesso » " + client.getPort() + " " + client.toString());
+			clientNameString = JOptionPane.showInputDialog(UsefulStrings.INSERT_YOUR_NAME);
+
+
+			System.out.println("Client connesso » " + client.getPort() + " " + clientNameString);
 
 			String request;
 			while (isRunning && (request = (String) in.readObject()) != null) {
 				//request = (String) in.readObject();
 
-				
 				switch (request) {
-					case "Model e Controller":
-						System.out.println("\n\n\n\n");
-						System.out.println("Invio il model: " + model);
-						out.writeObject(model);
-						System.out.println("Ho inviato il model: " + model);
-						System.out.println("\n\n\n\n");
-						System.out.println("Invio il controller: " + controller);
-						out.writeObject(controller);
-						System.out.println("Ho inviato il controller: " + controller);
-						System.out.println("\n\n\n\n");
-						break;
+				case "Model e Controller":
+					System.out.println("\n\n\n\n");
+					System.out.println("Invio il model: " + Server.model);
+					sendUpdate(Server.model, Server.controller);
+					System.out.println("Ho inviato il model: " + Server.model);
+					System.out.println("\n\n\n\n");
+					
+					out.reset();
+					
+					break;
+					
+				case "Model":
+					System.out.println("\n\n\n\n");
+					System.out.println("Invio il model: " + Server.model);
+					send(Server.model);
+					System.out.println("Ho inviato il model: " + Server.model);
+					System.out.println("\n\n\n\n");
+					
+					out.reset();
+					
+					break;
 
-					case "Ordine":
-						article = (Article) in.readObject();
-						controller = (WareHouseController) in.readObject();
-						model = (WareHouseModel) in.readObject();
-						units = in.readInt();
-						version = (String) in.readObject();
-						//model = controller.getWarehouse();
+				case "Controller":
+					System.out.println("\n\n\n\n");
+					System.out.println("Invio il controller: " + Server.controller);
+					send(Server.controller);
+					System.out.println("Ho inviato il controller: " + Server.controller);
+					System.out.println("\n\n\n\n");
+					
+					out.reset();
+					
+					break;
 
-						System.out.println("\n\n\n\n");
-						System.out.println("Processo l'ordine " + request);
-						System.out.println("Articolo " + article.getName());
-						System.out.println("Unità " + units);
-						System.out.println("Versione " + version);
+				case "Ordine":
+					article = (Article) in.readObject();
+					controller = (WareHouseController) in.readObject();
+					model = (WareHouseModel) in.readObject();
+					units = in.readInt();
+					version = (String) in.readObject();
+					//model = controller.getWarehouse();
 
-						System.out.println("Vecchia quantità di " + version + " » " + model.getArticle(article.getName()).getQuantity(new ArrayList<String>(model.getArticle(article.getName()).getVersions().keySet()).indexOf(version)));
+					System.out.println("\n\n\n\n");
+					System.out.println("Processo l'ordine " + request);
+					System.out.println("Articolo " + article.getName());
+					System.out.println("Unità " + units);
+					System.out.println("Versione " + version);
 
-						model = controller.settingNewUnits(units, version, article);
+					System.out.println("Vecchia quantità di " + version + " » " + model.getArticle(article.getName()).getQuantity(new ArrayList<String>(model.getArticle(article.getName()).getVersions().keySet()).indexOf(version)));
 
-						System.out.println("Nuova quantità di " + version + " » " + model.getArticle(article.getName()).getQuantity(new ArrayList<String>(model.getArticle(article.getName()).getVersions().keySet()).indexOf(version)));
-						System.out.println("Model " + model + " aggiornato.");
-						out.writeObject(model);
-						out.writeObject(controller);
-						System.out.println("Model " + model + " e controller " + controller + " inviati.");
-						break;
+					model = controller.settingNewUnits(units, version, article);
+					Server.model = model;
+					Server.controller = controller;
+
+					System.out.println("Nuova quantità di " + version + " » " + Server.model.getArticle(article.getName()).getQuantity(new ArrayList<String>(Server.model.getArticle(article.getName()).getVersions().keySet()).indexOf(version)));
+					System.out.println("Model " + model + " aggiornato.");
+					sendToAll(Server.model, Server.controller);
+					System.out.println("Model " + model + " e controller " + controller + " inviati.");
+
+					out.reset();
+
+					break;
 
 					/*
 					 * La view mi manda il controller, aggiorno il model e invio il model aggiornato.
 					 */
-					case "Acquisto":
-						article = (Article) in.readObject();
-						controller = (WareHouseController) in.readObject();
-						model = (WareHouseModel) in.readObject();
-						units = in.readInt();
-						version = (String) in.readObject();
-						//model = controller.getWarehouse();
+				case "Acquisto":
+					article = (Article) in.readObject();
+					controller = (WareHouseController) in.readObject();
+					model = (WareHouseModel) in.readObject();
+					units = in.readInt();
+					version = (String) in.readObject();
+					//model = controller.getWarehouse();
 
-						System.out.println("\n\n\n\n");
-						System.out.println("Processo l'ordine " + request);
-						System.out.println("Articolo " + article.getName());
-						System.out.println("Unità " + units);
-						System.out.println("Versione " + version);
+					System.out.println("\n\n\n\n");
+					System.out.println("Processo l'ordine " + request);
+					System.out.println("Articolo " + article.getName());
+					System.out.println("Unità " + units);
+					System.out.println("Versione " + version);
 
+					int available = model.getArticle(article.getName()).getQuantity(new ArrayList<String>(model.getArticle(article.getName()).getVersions().keySet()).indexOf(version));
+					if (available < model.getArticle(article.getName()).getMinimum(new ArrayList<String>(model.getArticle(article.getName()).getVersions().keySet()).indexOf(version))) {
+						JOptionPane.showMessageDialog(null, UsefulStrings.APOLOGISE);
+					} else {
 						System.out.println("Vecchia quantità di " + version + " » " + model.getArticle(article.getName()).getQuantity(new ArrayList<String>(model.getArticle(article.getName()).getVersions().keySet()).indexOf(version)));
 
-						model = controller.processOrder(units, version, article);
+						Server.model = controller.processOrder(units, version, article);
+						Server.controller = controller;
 
-						System.out.println("Nuova quantità di " + version + " » " + model.getArticle(article.getName()).getQuantity(new ArrayList<String>(model.getArticle(article.getName()).getVersions().keySet()).indexOf(version)));
+						System.out.println("Nuova quantità di " + version + " » " + Server.model.getArticle(article.getName()).getQuantity(new ArrayList<String>(Server.model.getArticle(article.getName()).getVersions().keySet()).indexOf(version)));
 						System.out.println("Model " + model + " aggiornato.");
-						out.writeObject(model);
-						out.writeObject(controller);
+						sendToAll(Server.model, Server.controller);
 						System.out.println("Model " + model + " e controller " + controller + " inviati.");
-						break;
+
+						out.reset();
+					}
+
+					break;
 
 
-					case "Nuova merce":
+				case "Nuova merce":
 
-						System.out.println("\n\n\n\n");
+					System.out.println("\n\n\n\n");
 
-						controller = (WareHouseController) in.readObject();
-						String name = (String) in.readObject();
-						int quantity = in.readInt();
-						int price = in.readInt();
-						int minimum = in.readInt();
-						int maximum = in.readInt();
-						String versionName = (String) in.readObject();
-						ImageIcon nIcon = (ImageIcon) in.readObject();
-						ImageIcon vIcon = (ImageIcon) in.readObject();
+					controller = (WareHouseController) in.readObject();
+					String name = (String) in.readObject();
+					int quantity = in.readInt();
+					int price = in.readInt();
+					int minimum = in.readInt();
+					int maximum = in.readInt();
+					String versionName = (String) in.readObject();
+					ImageIcon nIcon = (ImageIcon) in.readObject();
+					ImageIcon vIcon = (ImageIcon) in.readObject();
 
 
-						boolean doesArticleExist = controller.checkNameAvailability(name, model);
+					boolean doesArticleExist = controller.checkNameAvailability(name, Server.model);
 
-						if (doesArticleExist == false){
-							int[] prices = {price};
-							int[] quantities = {quantity};
-							int[] minimums = {minimum};
-							int[] maximums = {maximum};
-							Article newArticle = new Article(name, new LinkedHashMap<String, ImageIcon>(){
-								{
-									put(versionName, vIcon);
-								}}, prices, quantities, maximums, minimums, nIcon);
-							controller.getWarehouse().setProduct(newArticle);
-						} else {
-							controller.addNewVersion(name, quantity, price, minimum, maximum, versionName, vIcon);
-						}
+					if (doesArticleExist == false){
+						int[] prices = {price};
+						int[] quantities = {quantity};
+						int[] minimums = {minimum};
+						int[] maximums = {maximum};
+						Article newArticle = new Article(name, new LinkedHashMap<String, ImageIcon>(){
+							{
+								put(versionName, vIcon);
+							}}, prices, quantities, maximums, minimums, nIcon);
+						controller.getWarehouse().setProduct(newArticle);
+					} else {
+						controller.addNewVersion(name, quantity, price, minimum, maximum, versionName, vIcon);
+					}
 
-						model = controller.getWarehouse();
+					Server.model = controller.getWarehouse(); //TODO controlla che la merce si aggiunga davvero!!!
+					Server.controller = controller;
 
-						System.out.println("Invio il model: " + model);
-						out.writeObject(model);
-						out.writeObject(controller);
-						System.out.println("Ho inviato il model: " + model);
-						System.out.println("\n\n\n\n");
+					System.out.println("Invio il model: " + model);
+					sendToAll(Server.model, Server.controller);
+					System.out.println("Ho inviato il model: " + model);
+					System.out.println("\n\n\n\n");
 
-						break;
-					case "Esci":
-						close();
-						break;
-					default:
-						break;
+					out.reset();
+
+					break;
+
+				case "Esci":
+					close();
+					break;
+
+				default:
+					break;
 				}
 
 				try {
@@ -192,26 +232,39 @@ public class Protocol implements Runnable {
 		}
 	}
 
-	public void send(WareHouseModel model) throws IOException {
-		this.out.writeObject(model);
-		this.out.flush();
-		
-	}
-
 	private void close() {
 		isRunning = false;
 	}
 
 	private void quit() {
-		clients.remove(this); // devo togliermi per cessare il tutto, ovvero avere il server senza client collegati.
+		Server.clients.remove(this); // devo togliermi per cessare il tutto, ovvero avere il server senza client collegati.
 		System.out.println("Client " + clientNameString + " disconnesso.");
-		if (clients.size() == 0) close();
+		if (Server.clients.size() == 0) close();
 	}
 
+	public void sendToAll(WareHouseModel model, WareHouseController controller) throws IOException {
+		for(Protocol client : Server.clients)
+			client.sendUpdate(model, controller);
+	}
 
-	public void send(WareHouseController controller) throws IOException {
+	public void sendUpdate(WareHouseModel model, WareHouseController controller) throws IOException {
+		System.out.println("Model e Controller");
+		this.out.writeObject("Model e Controller");
+		this.out.writeObject(model);
 		this.out.writeObject(controller);
 		this.out.flush();
+	}
+
+	public void send(WareHouseController controller) throws IOException {
+		out.writeObject("Controller");
+		out.writeObject(controller);
+		out.flush();
+	}
+
+	public void send(WareHouseModel model) throws IOException {
+		out.writeObject("Model");
+		out.writeObject(model);
+		out.flush();
 	}
 }
 
