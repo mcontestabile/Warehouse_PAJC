@@ -1,75 +1,67 @@
-package it.unibs.pajc.network;
+package it.unibs.pajc.warehouse;
 
-import java.io.IOException;
-import java.net.ServerSocket;
-import java.net.Socket;
+import it.unibs.pajc.utilities.*;
+import javax.swing.*;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 
-import javax.swing.ImageIcon;
+public class WareHouseController implements Serializable {
+	private WareHouseModel model;
 
-import it.unibs.pajc.utilities.UsefulStrings;
-import it.unibs.pajc.warehouse.Article;
-import it.unibs.pajc.warehouse.WareHouseController;
-import it.unibs.pajc.warehouse.WareHouseModel;
+	public WareHouseController() {
+		model = createWareHouse();
+	}
 
-/**
- * Where is the actual main game model being held? On each client or on the server?
- * It should be on the server, and the clients simply pass requests to the server that
- * the model should be changed. Once changed, the server should send updated data to
- * all the models so that their graphical representation of the model (their local view)
- * can be properly updated.
- * 
- * @author martinacontestabile
- *
- */
-public class Server {
-	
-	static WareHouseController controller = new WareHouseController();
-	static WareHouseModel model = controller.getWarehouse();
-	static ArrayList<Protocol> clients = new ArrayList<Protocol>();
-	
-	public static void main(String[] args) throws IOException {
+	/**
+	 * Controllo se il nome dell'oggetto {@code Articolo} ricercato
+	 * esiste davvero o meno. Il metodo è pensato per un riuso, nel
+	 * caso venga implementata la possibilità all'utente di inserire
+	 * nuovi articoli nel magazzino (nel caso il programma venga
+	 * usato da un'azienda di logistica).
+	 * @param n       nome inserito dall'utente nella ricerca.
+	 * @param model   articoli all'interno del magazzino.
+	 * @return se esiste true, se non esiste false.
+	 */
+	public boolean checkNameAvailability(String n, WareHouseModel model) {
+		for (Article a : model.getProducts()) {
+			if(a.checkNameAvailability(n)) return true;
+		}
+		return false;
+	}
 
- 		// Attiviamo il servizio su questa porta, non può essere modificata.
- 		final int port = 1234;
+	/**
+	 * Questo metodo permette di settare la quantità
+	 * la merce in magazzino di ciascun oggetto dopo un ordine.
+	 *
+	 * @param ordered quantità ordinata.
+	 */
+	public WareHouseModel settingNewUnits(int ordered, String version, Article article) {
+		model.settingNewUnits(ordered, version, article);
+		return model;
+	}
 
- 		
- 		ServerSocket server = new ServerSocket(port); // Server che vogliamo creare.
+	/**
+	 * Questo metodo permette di settare la quantità
+	 * la merce in magazzino di ciascun oggetto dopo un ordine.
+	 *
+	 * @param ordered quantità ordinata.
+	 */
+	public WareHouseModel processOrder(int ordered, String version, Article article) {
+		model.processOrder(ordered, version, article);
+		return model;
+	}
 
- 		System.out.println("Il server è stato avviato.");
-		/*
-		 *  Creare un server significa creare una risorsa a livello di Classe Java.
-		 *  Gli standard ISO/OSI hanno servizi che permettono al layer applicativo
-		 *  di non preoccuparsi di come avvengono le cose a livelli più bassi.
-		 *  
-		 *  Il Server è nel try per chiuderlo in modo corretto appena finito il programma.
-		 */
-		try {
-			while (true) {
-				/*
-				 * Ora dobbiamo mettere in ascolto il server e accettare le richieste di comunicazione.
-				 * Come si può fare? Il server ha un metodo che si chiama accept che, finché non
-				 * faccio una richiesta al server, rimane in ascolto. Appena un client si connette,
-				 * il server restituisce un oggetto che è il client stesso, una socket.
-				 */
-				Socket client = server.accept();
-				Protocol protocol = new Protocol(client);
-				clients.add(protocol);
-				Thread clientThread = new Thread(protocol);
-				clientThread.start();
-			}
-		} catch (IOException e) {
-			System.err.println("Errore di comunicazione » " + e);
-		} finally {
-			server.close();
- 		}
+	public WareHouseModel getWarehouse() {
+		return model;
+	}
 
- 		System.out.println("Uscita dal server.");
+	public WareHouseModel addNewVersion(String name, int quantity, int price, int minimum, int maximum, String versionName, ImageIcon vIcon) {
+		model.setSubcategory(name, quantity, price, minimum, maximum, versionName, vIcon);
+		return model;
+	}
 
- 	}
-	
-	public static WareHouseModel createWareHouse() {
+	public WareHouseModel createWareHouse() {
 		ArrayList<Article> products = new ArrayList<>();
 
 		products.add(new Article(
@@ -238,18 +230,3 @@ public class Server {
 		return new WareHouseModel(products);
 	}
 }
-
-/*
- * if you use a classic model/view pattern then this is straighforward.
- * Your «model» classes encapsulate the current state of the game (who
- * has which cards, whose turn is it next etc) in a purely logical form
- * (no user interface artifacts). Your «view» classes display the current
- * state as a GUI or whatever (no involvement in how that state evolved).
- * The model is maintained on the server. The GUI(s) live on the client(s).
- * All clients have a thread that sits in a loop listening on an
- * ObjectInputStream on their server connection. Whenever anything happens
- * to change the model the server sends the latest state to all the clients.
- * When a client receives a new state it displays it. When the user does something
- * the client sends the corresponding request to the server, which updates
- * the model (and thus sends its latest state to all clients).
- */

@@ -9,20 +9,29 @@ import javax.swing.*;
 import it.unibs.pajc.utilities.UsefulStrings;
 import it.unibs.pajc.warehouse.*;
 
+
+/**
+ * E' il controller del programma, permette alla view di dialogare
+ * con model runtime, fa da tramite nello scambio di informazioni e dati.
+ * 
+ * 
+ * @author martinacontestabile
+ *
+ */
 public class Protocol implements Runnable {
 	private ObjectInputStream in;
 	private ObjectOutputStream out;
-	private static ArrayList<Protocol> clients = new ArrayList<>();
+	//private static ArrayList<Protocol> clients = new ArrayList<>();
 	private Socket client;
 	private boolean isRunning = true;
 	private String clientNameString;
 
 	private Article article;
 	private int units;
-	private  String version;
-
+	private String version;
+	
 	private WareHouseController controller;
-	private WareHouseModel model;
+	
 	/*
 	WareHouseController controller = new WareHouseController();
 	WareHouseModel model = controller.getWarehouse();
@@ -32,13 +41,15 @@ public class Protocol implements Runnable {
 		in = new ObjectInputStream(client.getInputStream());     // Socket client diventa una presa per client-server, sono collegati fra loro.
 		
 		this.client = client;
-		clients.add(this);
+		//Server.clients.add(client);
 	}
 
 	@Override
 	public void run() {
 		try {
-			clientNameString = JOptionPane.showInputDialog(UsefulStrings.INSERT_YOUR_NAME);
+			JFrame jf=new JFrame();
+			jf.setAlwaysOnTop(true);
+			clientNameString = JOptionPane.showInputDialog(jf, UsefulStrings.INSERT_YOUR_NAME);
 
 
 			System.out.println("Client connesso » " + client.getPort() + " " + clientNameString);
@@ -48,14 +59,6 @@ public class Protocol implements Runnable {
 				//request = (String) in.readObject();
 
 				switch (request) {
-				case "Model":
-					System.out.println("\n\n\n\n");
-					System.out.println("Invio il model: " + Server.model);
-					send(Server.model);
-					System.out.println("Ho inviato il model: " + Server.model);
-					System.out.println("\n\n\n\n");
-					break;
-
 				case "Controller":
 					System.out.println("\n\n\n\n");
 					System.out.println("Invio il controller: " + Server.controller);
@@ -63,11 +66,10 @@ public class Protocol implements Runnable {
 					System.out.println("Ho inviato il controller: " + Server.controller);
 					System.out.println("\n\n\n\n");
 					break;
-
+					
 				case "Ordine":
 					article = (Article) in.readObject();
 					controller = (WareHouseController) in.readObject();
-					model = (WareHouseModel) in.readObject();
 					units = in.readInt();
 					version = (String) in.readObject();
 					//model = controller.getWarehouse();
@@ -78,28 +80,27 @@ public class Protocol implements Runnable {
 					System.out.println("Unità " + units);
 					System.out.println("Versione " + version);
 
-					System.out.println("Vecchia quantità di " + version + " » " + model.getArticle(article.getName()).getQuantity(new ArrayList<String>(model.getArticle(article.getName()).getVersions().keySet()).indexOf(version)));
+					System.out.println("Vecchia quantità di " + version + " » " + controller.getWarehouse().getArticle(article.getName()).getQuantity(new ArrayList<String>(controller.getWarehouse().getArticle(article.getName()).getVersions().keySet()).indexOf(version)));
 
-					model = controller.settingNewUnits(units, version, article);
-					Server.model = model;
+					Server.model = controller.settingNewUnits(units, version, article);
 					Server.controller = controller;
 
 					System.out.println("Nuova quantità di " + version + " » " + Server.model.getArticle(article.getName()).getQuantity(new ArrayList<String>(Server.model.getArticle(article.getName()).getVersions().keySet()).indexOf(version)));
-					System.out.println("Model " + model + " aggiornato.");
-					sendToAll(Server.model, Server.controller);
-					System.out.println("Model " + model + " e controller " + controller + " inviati.");
+					System.out.println("Controller " + Server.controller + " aggiornato.");
+					sendToAll(Server.controller);
+					System.out.println("Controller " + Server.controller + " inviato.");
 
 					out.reset();
 
 					break;
 
-					/*
-					 * La view mi manda il controller, aggiorno il model e invio il model aggiornato.
-					 */
+			   /*
+				* La view mi manda il controller, aggiorno il model
+				* e invio model e controller aggiornati.
+				*/
 				case "Acquisto":
 					article = (Article) in.readObject();
 					controller = (WareHouseController) in.readObject();
-					model = (WareHouseModel) in.readObject();
 					units = in.readInt();
 					version = (String) in.readObject();
 					//model = controller.getWarehouse();
@@ -110,19 +111,19 @@ public class Protocol implements Runnable {
 					System.out.println("Unità " + units);
 					System.out.println("Versione " + version);
 
-					int available = model.getArticle(article.getName()).getQuantity(new ArrayList<String>(model.getArticle(article.getName()).getVersions().keySet()).indexOf(version));
-					if (available < model.getArticle(article.getName()).getMinimum(new ArrayList<String>(model.getArticle(article.getName()).getVersions().keySet()).indexOf(version))) {
+					int available = controller.getWarehouse().getArticle(article.getName()).getQuantity(new ArrayList<String>(controller.getWarehouse().getArticle(article.getName()).getVersions().keySet()).indexOf(version));
+					if (available < controller.getWarehouse().getArticle(article.getName()).getMinimum(new ArrayList<String>(controller.getWarehouse().getArticle(article.getName()).getVersions().keySet()).indexOf(version))) {
 						JOptionPane.showMessageDialog(null, UsefulStrings.APOLOGISE);
 					} else {
-						System.out.println("Vecchia quantità di " + version + " » " + model.getArticle(article.getName()).getQuantity(new ArrayList<String>(model.getArticle(article.getName()).getVersions().keySet()).indexOf(version)));
+						System.out.println("Vecchia quantità di " + version + " » " + Server.model.getArticle(article.getName()).getQuantity(new ArrayList<String>(controller.getWarehouse().getArticle(article.getName()).getVersions().keySet()).indexOf(version)));
 
 						Server.model = controller.processOrder(units, version, article);
 						Server.controller = controller;
 
 						System.out.println("Nuova quantità di " + version + " » " + Server.model.getArticle(article.getName()).getQuantity(new ArrayList<String>(Server.model.getArticle(article.getName()).getVersions().keySet()).indexOf(version)));
-						System.out.println("Model " + model + " aggiornato.");
-						sendToAll(Server.model, Server.controller);
-						System.out.println("Model " + model + " e controller " + controller + " inviati.");
+						System.out.println("Controller " + Server.controller + " aggiornato.");
+						sendToAll(Server.controller);
+						System.out.println("Controller " + Server.controller + " inviato.");
 
 						out.reset();
 					}
@@ -164,14 +165,15 @@ public class Protocol implements Runnable {
 					Server.model = controller.getWarehouse(); //TODO controlla che la merce si aggiunga davvero!!!
 					Server.controller = controller;
 
-					System.out.println("Invio il model: " + model);
-					sendToAll(Server.model, Server.controller);
-					System.out.println("Ho inviato il model: " + model);
+					System.out.println("Invio il model: " + Server.controller);
+					sendToAll(Server.controller);
+					System.out.println("Ho inviato il model: " + Server.controller);
 					System.out.println("\n\n\n\n");
 
 					out.reset();
 
 					break;
+
 
 				case "Esci":
 					close();
@@ -186,27 +188,6 @@ public class Protocol implements Runnable {
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
-				/*
-				 * Se command è vuoto, cosa vado ad eseguire?
-				 */
-
-
-				// sendToAll(this, request);
-
-				/*
-				 * Come evitare tutti questi if-else?
-				 * Serve creare una matrice che mappi comandi e azioni.
-				 * A sinistra comando, a destra lista di client.
-				 * Il comando @QUIT corrisponde all'uscita dal client.
-				 * E' possibile creare una mia sintassi che permette
-				 * al protocollo di svolgere una certa operazione.
-				 *
-				 * La prima cosa da fare per verificare la validità di un comando
-				 * è quella di fare il parsing delle stringhe.
-				 * La seconda cosa da fare è quella di determinare il formato del
-				 * comando, in modo da permettere il parsing e la lettura corretta.
-				 * La terza cosa da fare è associare il comando ai parametri corretti.
-				 */
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -220,30 +201,31 @@ public class Protocol implements Runnable {
 	}
 
 	private void quit() {
-		clients.remove(this); // devo togliermi per cessare il tutto, ovvero avere il server senza client collegati.
+		Server.clients.remove(this); // devo togliermi per cessare il tutto, ovvero avere il server senza client collegati.
 		System.out.println("Client " + clientNameString + " disconnesso.");
-		if (clients.size() == 0) close();
+		if (Server.clients.size() == 0) close();
 	}
 
-	public void sendToAll(WareHouseModel model, WareHouseController controller) throws IOException {
-		for(Protocol client : clients)
-			client.sendUpdate(client, model, controller);
+	public void sendToAll(WareHouseController controller) throws IOException {
+		System.out.println("Client connessi:");
+		for(Protocol client : Server.clients) {
+			System.out.println(client.clientNameString);
+			client.sendUpdate(Server.controller);
+		}
 	}
 
-	public void sendUpdate(Protocol client, WareHouseModel model, WareHouseController controller) throws IOException {
-		this.out.writeObject(model);
+	public void sendUpdate(WareHouseController controller) throws IOException {
+		this.out.writeObject("Aggiornato");
 		this.out.writeObject(controller);
 		this.out.flush();
+		this.out.reset();
 	}
 
 	public void send(WareHouseController controller) throws IOException {
+		this.out.writeObject("Controller");
 		this.out.writeObject(controller);
 		this.out.flush();
-	}
-
-	public void send(WareHouseModel model) throws IOException {
-		this.out.writeObject(model);
-		this.out.flush();
+		this.out.reset();
 	}
 }
 
